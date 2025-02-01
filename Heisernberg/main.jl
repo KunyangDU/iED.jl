@@ -144,9 +144,7 @@ ps,Rs,ms = LattRevSymm(N, k, p)
 LattRevGauge(flip(ps[1],[4,5]),N),ps
 
 #= 
-check T
-check P
-find smallest rep with (R,m) to save σ
+Hamiltonian for given state ps
 =#
 
 
