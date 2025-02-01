@@ -60,6 +60,9 @@ end
 bit(s::Int, k::Int) = (s >> (k-1)) & 1
 flip(s::Int, k::Union{Int,Vector}) = s ⊻ sum(@. 1 << (k-1))
 
+"""
+return periodicity R
+"""
 function CheckStatePeri(s,N,k)
     for i in 1:N
         t = rotate(s,i,N)
@@ -87,7 +90,7 @@ function LattSymm(N, k, state = 0:2^N-1)
     return ps,Rs
 end
 
-function gauge(s, N)
+function LattGauge(s, N)
     r = s
     l = 0
     for i in 1:N-1
@@ -106,7 +109,6 @@ function hermitianize(M::Matrix)
 end
 
 function Base.bitreverse(x::Int, n::Int)
-    @show bitstring(x)[end - n + 1:end]
     return parse(Int, reverse(bitstring(x)[end - n + 1:end]), base = 2)
 end
 
