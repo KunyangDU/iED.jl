@@ -103,12 +103,79 @@ function LattGauge(s, N)
     return r,l
 end
 
-function hermitianize(M::Matrix)
-    @assert M ≈ M'
+function hermitianize(M::Matrix;tol = 1e-5)
+    ϵ = sum(abs.(M .- M'))
+    @assert ϵ < tol
     return (M .+ M') / 2
 end
 
 function Base.bitreverse(x::Int, n::Int)
     return parse(Int, reverse(bitstring(x)[end - n + 1:end]), base = 2)
+end
+"""
+return reversion periodicity m
+"""
+function CheckStateRev(s, N, R)
+    t = bitreverse(s,N)
+    for i in 0:R-1
+        t < s && return nothing, nothing
+        t == s && return R, i
+        t = rotate(t,1,N)
+    end
+    return R,nothing
+end
+
+function LattGauge(s, N)
+    r = s
+    l = 0
+    for i in 1:N-1
+        t = rotate(s, i, N)
+        if t < r
+            r = t 
+            l=i
+        end
+    end
+    return r,l
+end
+
+
+function LattRevGauge(s, N)
+    r,l = LattGauge(s,N)
+    t = bitreverse(s,N)
+    q = 0
+    for i in 1:N-1
+        t = rotate(t,1,N)
+        if t < r 
+            r=t 
+            l=i 
+            q=1
+        end
+    end 
+    return r,l,q
+end
+
+function DiagTerm(state::Vector,N::Int)
+    ds = zeros(length(state))
+    for (is,s) in enumerate(state)
+        for i in 1:N
+            j = mod(i,N) + 1
+            if bit(s,i) == bit(s,j)
+                ds[is] += 1/4
+            else
+                ds[is] += -1/4
+            end
+        end
+    end
+    return ds
+end
+
+function _getSubsize(ind::Int, state::Vector)
+    if ind > 1 && state[ind] == state[ind-1]
+        return nothing 
+    elseif ind < length(state) && state[ind] == state[ind+1]
+        return 2
+    else
+        return 1
+    end
 end
 
