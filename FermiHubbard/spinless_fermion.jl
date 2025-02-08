@@ -55,19 +55,12 @@ function getGStheo(N;t,μ)
     return E,N
 end
 
-function getNop(N)
-    Nop = zeros(2^N,2^N)
-    for s in 0:2^N-1
-        Nop[s+1,s+1] = count_ones(s)
-    end
-    return Nop
-end
 
 # Example usage
-N = 10
+N = 4
 t = 1.0
 
-lsμ = range(-2,2,50)
+lsμ = range(-2,2,51)
 
 Nop = getNop(N)
 
@@ -88,6 +81,9 @@ for μ in lsμ
     push!(Es,eigenvalues[1])
     push!(Ns,n)
     Et,Nt = getGStheo(N;params...)
+    if μ == 0
+        @show Es[end]
+    end
     push!(Est,Et)
     push!(Nst,Nt)
 end 
@@ -106,4 +102,4 @@ axislegend(ax,position = :lt)
 resize_to_layout!(fig)
 display(fig)
 
-save("FermiHubbard/figures/DS_spinless_free.png",fig)
+save("FermiHubbard/figures/spinless_free.png",fig)
