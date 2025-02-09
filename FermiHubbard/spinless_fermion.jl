@@ -1,5 +1,7 @@
 using LinearAlgebra,CairoMakie
 
+include("utils.jl")
+
 function apply_annihilate(j, s)
     if (s & (1 << j)) == 0
         return (0, 0)
