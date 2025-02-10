@@ -1,18 +1,24 @@
-using LinearAlgebra,CairoMakie
+using LinearAlgebra,CairoMakie,JLD2
 
 include("../Heisenberg/utils.jl")
 include("utils.jl")
 
-function getnd(N,state)
-    state = bitstring(state)[end-N+1:end]
-    nd = let 
-        cnt = 0
-        for i in 1:div(N,2)
-            reverse(state)[2*i-1:2i] == "11" && (cnt += 1)
-        end
-        cnt
-    end
-    return nd
+function getspinocc(N_orb::Int,ket::Int)
+    maskup = convert(Int64,sum(2. .^ ((1:2:N_orb-1)) ))
+    maskdn = convert(Int64,sum(2. .^ ((0:2:N_orb-2)) ))
+    up = (ket & maskup) >> 1
+    dn = ket & maskdn
+    return up,dn
+end
+
+function getmag(N_orb::Int,ket::Int)
+    up,dn = getspinocc(N_orb,ket)
+    return (count1s(up) - count1s(dn))/2
+end
+
+function getnd(N_orb::Int,ket::Int)
+    up,dn = getspinocc(N_orb,ket)
+    return count1s(up & dn)
 end
 
 function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
@@ -45,24 +51,20 @@ function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
     H = zeros(Float64, N_states, N_states)
     for ket in basis
         ket_idx = findfirst(x -> x == ket,basis)
-        H[ket_idx,ket_idx] += -(μ + U/2) * count_ones(ket)
-        maskup = convert(Int64,sum(2. .^ ((1:2:N_orb-1)) ))
-        maskdn = convert(Int64,sum(2. .^ ((0:2:N_orb-2)) ))
-        up = (ket & maskup) >> 1
-        dn = ket & maskdn
-        H[ket_idx,ket_idx] += U*count_ones(dn & up)
+        H[ket_idx,ket_idx] += -(μ + U/2) * count1s(ket)
+        H[ket_idx,ket_idx] += U*getnd(N_orb,ket)
         for n in 1:N_orb, m in 1:N_orb
             (H_single[m, n] == 0) && continue
 
             # 湮灭算符c_n作用
             (ket & (1 << (n-1)) == 0) && continue
             ket1 = ket ⊻ (1 << (n-1))
-            sign1 = (-1)^count_ones(ket & ((1 << (n-1)) - 1))
+            sign1 = (-1)^count1s(ket & ((1 << (n-1)) - 1))
 
             # 产生算符c^†_m作用
             (ket1 & (1 << (m-1)) != 0) && continue
             ket2 = ket1 | (1 << (m-1))
-            sign2 = (-1)^count_ones(ket1 & ((1 << (m-1)) - 1))
+            sign2 = (-1)^count1s(ket1 & ((1 << (m-1)) - 1))
 
             # 更新矩阵元
             ket2_idx = findfirst(x -> x == ket2,basis)
@@ -78,8 +80,10 @@ function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
 end
 
 
+
+
 U = 0
-Nx,Ny = 1,6
+Nx,Ny = 1,8
 N = Nx*Ny
 N_orb = 2N
 #lsμ = (U/2 + 2) .* range(-1,1,3*(U+4) + 1)
@@ -90,31 +94,35 @@ lsT = 1 ./ lsβ
 data = Dict()
 
 for μ in 0
-
-    for N0 in 0:2N
+    for N0 in N_orb:-1:0,M0 in -div(N,2):1/2:div(N,2)
+        Neff = min(N0,N_orb-N0)
+        !(M0 in -Neff/2:Neff/2) && continue
         basis = let 
             tmp = []
             for s in 0:2^N_orb-1
-                count_ones(s) == N0 && push!(tmp,  s)
+                count1s(s) == N0 && getmag(N_orb,s) == M0 && push!(tmp,  s)
             end
             tmp
         end
+        isempty(basis) && println("---------") 
         E,V = main(Nx,Ny,μ,U,basis)
 
         tmpdata = Dict(
             "E" => E,
             "V" => V,
-            "N" => N0
+            "N" => N0,
+            "M" => M0
         )
 
-        data[(μ,N0)] = tmpdata
-
+        data[(μ,N0,M0)] = tmpdata
     end
 
     Fs = zeros(length(lsβ))
     Us = zeros(length(lsβ))
     Ns = zeros(length(lsβ))
+    Ms = zeros(length(lsβ))
     Ces = zeros(length(lsβ))
+    χs = zeros(length(lsβ))
 
     for (iβ,β) in enumerate(lsβ)
         Z = sum(vcat([exp.(- β * data[key]["E"]) for key in keys(data)]...))
@@ -125,6 +133,7 @@ for μ in 0
         Fs[iβ] = -log(Z) / β / N
         Us[iβ] = U / N
         Ns[iβ] = Ntmp / N
+        #Ms[iβ] = 
         Ces[iβ] = (U2 - U^2) * β ^ 2 / N
     end
 
@@ -165,7 +174,13 @@ for μ in 0
     resize_to_layout!(fig)
     display(fig)
 
+    save("FermiHubbard/figures/spinful_hubbard_$(Nx)x$(Ny)_U=$(U).pdf",fig)
 
+    @save "FermiHubbard/data/data_$(Nx)x$(Ny)_U=$(U).jld2" data
+    @save "FermiHubbard/data/Fs_$(Nx)x$(Ny)_U=$(U).jld2" Fs
+    @save "FermiHubbard/data/Us_$(Nx)x$(Ny)_U=$(U).jld2" Us
+    @save "FermiHubbard/data/Ns_$(Nx)x$(Ny)_U=$(U).jld2" Ns
+    @save "FermiHubbard/data/Ces_$(Nx)x$(Ny)_U=$(U).jld2" Ces
 end
 
 
