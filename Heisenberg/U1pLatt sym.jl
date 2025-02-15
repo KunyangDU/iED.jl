@@ -66,8 +66,9 @@ end
 
 time0 = time()
 
-lsN = [4,8,12,16]
+lsN = [16]
 params = (Jzz =1,Jxy = 1)
+lsβ = 1 ./ range(0.025,2,100)
 
 figsize = (width = 200,height = 200)
 
@@ -94,17 +95,18 @@ for (iN,N) in enumerate(lsN)
     Hdata = Dict()
 
     @time for m in lsm
-        Hs,stateinfos,ks = main_U1pLatt(N,m;params...)
+        println("Each m")
+        @time Hs,stateinfos,ks = main_U1pLatt(N,m;params...)
         for i in 1:N
             (isnothing(Hs[i]) || isnothing(stateinfos[i])) && continue
             H = Hs[i]
             stateinfo = stateinfos[i]
             k = ks[i]
             pstate = stateinfo["pstate"]
-            F = eigen(H)
+            @time "eigen" F = eigen(H)
             E = real.(F.values)
             U = F.vectors
-            Hdata[(m,k)] = Dict(
+            @time "Hdata" Hdata[(m,k)] = Dict(
                 "H" => H,
                 "E" => E,
                 "U" => U,
@@ -114,7 +116,6 @@ for (iN,N) in enumerate(lsN)
         end
     end
 
-    lsβ = 1 ./ range(0.025,2,100)
     Fs = zeros(length(lsβ))
     Cs = zeros(length(lsβ))
     χs = zeros(length(lsβ))
