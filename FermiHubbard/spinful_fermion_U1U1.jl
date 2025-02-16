@@ -2,6 +2,7 @@ using LinearAlgebra,CairoMakie,JLD2
 
 include("../Heisenberg/utils.jl")
 include("utils.jl")
+include("../src/iED.jl")
 
 function getspinocc(N_orb::Int,ket::Int)
     maskup = convert(Int64,sum(2. .^ ((1:2:N_orb-1)) ))
@@ -49,10 +50,9 @@ function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
 
     # 构建多体哈密顿量
     H = zeros(Float64, N_states, N_states)
-    for ket in basis
-        ket_idx = findfirst(x -> x == ket,basis)
-        H[ket_idx,ket_idx] += -(μ + U/2) * count1s(ket)
-        H[ket_idx,ket_idx] += U*getnd(N_orb,ket)
+    for (iket,ket) in enumerate(basis)
+        H[iket,iket] += -(μ + U/2) * count1s(ket)
+        H[iket,iket] += U*getnd(N_orb,ket)
         for n in 1:N_orb, m in 1:N_orb
             (H_single[m, n] == 0) && continue
 
@@ -67,8 +67,8 @@ function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
             sign2 = (-1)^count1s(ket1 & ((1 << (m-1)) - 1))
 
             # 更新矩阵元
-            ket2_idx = findfirst(x -> x == ket2,basis)
-            H[ket2_idx, ket_idx] += H_single[m, n] * sign1 * sign2
+            ket2_idx = bifind(basis,ket,iket,ket2)
+            H[ket2_idx, iket] += H_single[m, n] * sign1 * sign2
         end
     end
 
@@ -82,8 +82,8 @@ end
 
 
 
-U = 0
-Nx,Ny = 1,8
+U = 8
+Nx,Ny = 2,2
 N = Nx*Ny
 N_orb = 2N
 #lsμ = (U/2 + 2) .* range(-1,1,3*(U+4) + 1)
@@ -126,15 +126,14 @@ for μ in 0
 
     for (iβ,β) in enumerate(lsβ)
         Z = sum(vcat([exp.(- β * data[key]["E"]) for key in keys(data)]...))
-        U = sum(vcat([exp.(- β * data[key]["E"]) .* data[key]["E"] for key in keys(data)]...)) / Z
+        Uo = sum(vcat([exp.(- β * data[key]["E"]) .* data[key]["E"] for key in keys(data)]...)) / Z
         Ntmp = sum(vcat([exp.(- β * data[key]["E"]) .* data[key]["N"] for key in keys(data)]...)) / Z
-        U2 = sum(vcat([exp.(- β * data[key]["E"]) .* (data[key]["E"] .^ 2) for key in keys(data)]...)) / Z
+        Uo2 = sum(vcat([exp.(- β * data[key]["E"]) .* (data[key]["E"] .^ 2) for key in keys(data)]...)) / Z
 
         Fs[iβ] = -log(Z) / β / N
-        Us[iβ] = U / N
+        Us[iβ] = Uo / N
         Ns[iβ] = Ntmp / N
-        #Ms[iβ] = 
-        Ces[iβ] = (U2 - U^2) * β ^ 2 / N
+        Ces[iβ] = (Uo2 - Uo^2) * β ^ 2 / N
     end
 
     figsize = (width = 300,

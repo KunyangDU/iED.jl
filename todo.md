@@ -14,5 +14,9 @@
 ## long-range
 - iED.jl 库，写自己的数据结构，加张量对称性和平移对称性
   - 如何便捷添加Hamiltonian
-- 学KrylovKit工具，Lanczos求解
+  
+## temporary
+- Latt -> orbital list -> state list结构
+- 晶格操作 -> 二进制操作
+- 找双周期性的Lattice
 
