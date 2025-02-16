@@ -1,124 +1,123 @@
-using LinearAlgebra
-using Combinatorics
-
-# 系统参数
-const Lx = 3  # 晶格大小
-const Ly = 3
-const N = Lx * Ly  # 总格点数
-const t = 1.0  # 跳跃强度
-const U = 0.0  # 相互作用强度
-const N_up = 2  # 上自旋粒子数
-const N_down = 2  # 下自旋粒子数
-
-# 生成所有满足 N_up 和 N_down 的实空间基矢
-function generate_states()
-    states = []
-    # 每个格点用两位表示: (上自旋, 下自旋)
-    for bits in 0:(2^(2*N) - 1)
-        up = 0
-        down = 0
-        for i in 0:N-1
-            up += (bits >> (2*i)) & 1
-            down += (bits >> (2*i + 1)) & 1
-        end
-        if up == N_up && down == N_down
-            push!(states, bits)
-        end
-    end
-    return states
-end
-
-states = generate_states()
-
-# 平移操作
-function translate(state, dx, dy)
-    translated = 0
-    for i in 0:Lx-1
-        for j in 0:Ly-1
-            old_pos = i * Ly + j
-            ni = (i + dx) % Lx
-            nj = (j + dy) % Ly
-            new_pos = ni * Ly + nj
-            # 提取原位置的两比特
-            bits = (state >> (2*old_pos)) & 0b11
-            translated |= bits << (2*new_pos)
-        end
-    end
-    return translated
-end
-
-# 生成平移群
-translation_group = [(dx, dy) for dx in 0:Lx-1, dy in 0:Ly-1]
-
-# 寻找轨道
-visited = Set()
-orbits = []
-for s in states
-    if !(s in visited)
-        orbit = []
-        for (dx, dy) in translation_group
-            ts = translate(s, dx, dy)
-            if !(ts in orbit)
-                push!(orbit, ts)
-            end
-        end
-        for ts in orbit
-            push!(visited, ts)
-        end
-        push!(orbits, orbit)
+using LatticeUtilities,CairoMakie
+include("src/iED.jl")
+abstract type AbstractLattice end
+abstract type SimpleLattice <: AbstractLattice end
+mutable struct SquareLattice <: SimpleLattice
+    unitcell::LatticeUtilities.UnitCell
+    lattice::LatticeUtilities.Lattice
+    bonds::Dict
+    function SquareLattice(unitcell,lattice,bonds)
+        return new(unitcell,lattice,bonds)
     end
 end
 
-# 构建动量基矢
-k_points = [(2π*n/Lx, 2π*m/Ly) for n in 0:Lx-1, m in 0:Ly-1]
-k_bases = Dict()
+function PeriSqua(L,W)
+    square = UnitCell(lattice_vecs = [[0.,1.],[1.,0.]],basis_vecs = [[0.,0.]])
+    lattice = Lattice(L = [W,L], periodic = [true,true])
+    bonds = Dict(
+        (true,1) => vcat([[Bond((1,1), [i,0]),Bond((1,1), [0,i])] for i in [-1,1]]...),
+        (false,1) => [Bond((1,1), [1,0]),Bond((1,1), [0,1])],
+        (true,2) => [Bond((1,1), [i,j]) for i in [-1,1],j in [-1,1]][:],
+        (false,2) => [Bond((1,1), [1,i]) for i in [-1,1]],
+    )
+    return SquareLattice(square,lattice,bonds)
+end
 
-for orbit in orbits
-    for (kx, ky) in k_points
-        coeffs = []
-        for (dx, dy) in translation_group
-            ts = translate(orbit[1], dx, dy)
-            phase = exp(-im * (kx*dx + ky*dy))
-            push!(coeffs, phase)
-        end
-        # 归一化
-        norm = sqrt(length(coeffs))
-        k_state = round(Int64,sum(coeffs) / norm)  # 假设实空间基矢正交
-        if abs(k_state) > 1e-6
-            if !haskey(k_bases, (kx, ky))
-                k_bases[(kx, ky)] = []
-            end
-            push!(k_bases[(kx, ky)], k_state)
-        end
+function latticescatter!(ax::Axis, Latt::SimpleLattice)
+    for i in 1:N
+        posi = coordinate(Latt,i)
+        scatter!(ax,posi...;
+        color = :black)
+        text!(ax,1.05*posi...;text = "$i")
     end
 end
 
-# 构建哈密顿量矩阵
-H_k = Dict()
-for (k, basis) in k_bases
-    @show basis
-    dim = length(basis)
-    H = zeros(ComplexF64, dim, dim)
-    # 库仑项 (对角)
-    for i in 1:dim
-        state = basis[i]
-        coulomb = 0
-        for site in 0:N-1
-            up = (state >> (2*site)) & 1
-            down = (state >> (2*site + 1)) & 1
-            coulomb += U * up * down
-        end
-        H[i, i] = coulomb
-    end
-    # 跳跃项 (简化为动量空间对角项)
-    H += -t * 2*(cos(k[1]) + cos(k[2])) * Matrix(I, dim, dim)
-    H_k[k] = H
+function neighbor(Latt::SquareLattice;level::Int64 = 1,ordered::Bool = false)
+    return collect(Tuple.(sort.(eachcol(build_neighbor_table(Latt.bonds[(ordered,level)], Latt.unitcell, Latt.lattice)))))
 end
 
-# 对角化每个 k 点的哈密顿量
-eigenvalues = Dict()
-for (k, H) in H_k
-    vals = eigvals(H)
-    eigenvalues[k] = vals
-    println("k = $k: $vals")
+function build_destination_table(Latt::SimpleLattice)
+    W,L = Latt.lattice.L
+    N = Latt.lattice.N
+    tb = zeros(Int64,L,W,N)
+    for s in 1:N, i in 1:L,j in 1:W
+        tb[i,j,s] = site_to_site(s,[j,i],1,Latt.unitcell,Latt.lattice)
+    end
+    @assert 0 ∉ tb
+    return tb
 end
+
+function displacement(Latt::SimpleLattice,i::Int64,j::Int64)
+    return collect(sites_to_displacement(i,j,Latt.unitcell,Latt.lattice))
+end
+
+function distance(Latt::SimpleLattice,i::Int64,j::Int64)
+    return collect(displacement_to_vec(displacement(Latt,i,j),1,1,Latt.unitcell))
+end
+
+function coordinate(Latt::SimpleLattice,i::Int64)
+    return loc_to_pos(site_to_loc(i,Latt.unitcell,Latt.lattice)[1],1,Latt.unitcell)
+end
+
+function build_neighbor_map(Latt::SimpleLattice;level::Int64 = 1,ordered::Bool = false)
+    maps = map_neighbor_table(build_neighbor_table(Latt.bonds[(ordered,level)],Latt.unitcell,Latt.lattice))
+    maps = [maps[i] for i in 1:Latt.lattice.N]
+    nbls = neighbor(Latt;level = level,ordered = ordered)
+    return nbls,maps
+end
+
+function bitpermute(x::Integer, perm::AbstractVector{<:Integer}, N::Integer)
+    @assert length(perm) == N "Permutation length must match N"
+    @assert sort(perm) == 1:N "Invalid permutation"
+
+    bits_foward = reverse(digits(x, base=2, pad=N))
+
+    new_bits = zeros(Int, N)
+    for i in 1:N
+        new_bits[perm[i]] = bits_foward[i]
+    end
+
+    return foldl((acc, b) -> acc * 2 + b, new_bits; init=0)
+end
+
+function statepermute(x::Integer, perm::AbstractVector{<:Integer}, N::Integer, intr::Int64=2)
+    state = 0
+    for i in 1:intr
+        state += bitpermute((x & ((2^N-1) << ((i-1)*N))) >> ((i-1)*N),perm,N) << ((i-1)*N)
+    end
+    return state
+end
+
+function build_translation_table(Latt::SimpleLattice,states::Vector,intr::Int64=2)
+    W,L = Latt.lattice.L
+    N = Latt.lattice.N
+    dntb = build_destination_table(Latt)
+    tb = zeros(Int64,L,W,length(states))
+    for i in 1:L,j in 1:W 
+        perm = dntb[i,j,:]
+        for (is,s) in enumerate(states)
+            tb[i,j,is] = statepermute(s,perm,N,intr)
+        end
+    end
+    return tb
+end
+
+
+L = 4
+W = 4
+N = L*W
+
+Latt = PeriSqua(L,W)
+
+fig = Figure()
+ax = Axis(fig[1,1])
+latticescatter!(ax,Latt)
+display(fig)
+
+displacement(Latt,1,2)
+dntb = build_destination_table(Latt)
+#trantb[1,2,1]
+nbs,maps = build_neighbor_map(Latt;ordered = true,level=2)
+dntb[1,2,:]
+
+build_translation_table(Latt,collect(0:2^Latt.lattice.N-1))

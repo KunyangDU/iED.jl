@@ -18,5 +18,4 @@
 ## temporary
 - Latt -> orbital list -> state list结构
 - 晶格操作 -> 二进制操作
-- 找双周期性的Lattice
 
