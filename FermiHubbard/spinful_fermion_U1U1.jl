@@ -43,23 +43,7 @@ function ce(β::Number,Lx::Int,Ly::Int)
     return β^2/2 * sum(@. ϵ(lsk)^2/(1 + cosh(β * ϵ(lsk)))) / Lx / Ly
 end
 
-function getspinocc(N_orb::Int,ket::Int)
-    maskup = convert(Int64,sum(2. .^ ((1:2:N_orb-1)) ))
-    maskdn = convert(Int64,sum(2. .^ ((0:2:N_orb-2)) ))
-    up = (ket & maskup) >> 1
-    dn = ket & maskdn
-    return up,dn
-end
 
-function getmag(N_orb::Int,ket::Int)
-    up,dn = getspinocc(N_orb,ket)
-    return (count1s(up) - count1s(dn))/2
-end
-
-function getnd(N_orb::Int,ket::Int)
-    up,dn = getspinocc(N_orb,ket)
-    return count1s(up & dn)
-end
 
 function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
     orbitals = [(i, j, σ) for j in 1:Ny for i in 1:Nx for σ in 1:2]
