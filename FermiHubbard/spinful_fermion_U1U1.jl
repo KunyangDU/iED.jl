@@ -4,6 +4,45 @@ include("../Heisenberg/utils.jl")
 include("utils.jl")
 include("../src/iED.jl")
 
+function ϵ(k)
+    return -2sum(cos.(k))
+end
+
+function getk(L::Int;condition = :obc)
+    if condition == :obc
+        return @. pi * (1:L) / (L+1)
+    elseif condition == :pbc
+        return @. 2pi * (1:L) / L
+    end
+end
+
+function getk(Lx::Int,Ly::Int)
+    if Ly == 1
+        lsk = getk(Lx;condition = :pbc)
+    else
+        lskx = getk(Lx;condition = :pbc)
+        lsky = getk(Ly;condition = :pbc)
+        lsk = [[kx,ky] for kx in lskx,ky in lsky][:]
+    end
+    return lsk
+end
+
+function ue(β::Number,Lx::Int,Ly::Int)
+    lsk = getk(Lx,Ly)
+    lsum = @.  ϵ(lsk) / (1 + exp( β * ϵ(lsk)))
+    return sum(lsum) / Lx / Ly
+end
+
+function fe(β::Number,Lx::Int,Ly::Int)
+    lsk = getk(Lx,Ly)
+    return - sum(@. log(1+exp(-β*(ϵ(lsk))))) / β / Lx / Ly
+end
+
+function ce(β::Number,Lx::Int,Ly::Int)
+    lsk = getk(Lx,Ly)
+    return β^2/2 * sum(@. ϵ(lsk)^2/(1 + cosh(β * ϵ(lsk)))) / Lx / Ly
+end
+
 function getspinocc(N_orb::Int,ket::Int)
     maskup = convert(Int64,sum(2. .^ ((1:2:N_orb-1)) ))
     maskdn = convert(Int64,sum(2. .^ ((0:2:N_orb-2)) ))
@@ -82,7 +121,7 @@ end
 
 
 
-U = 8
+U = 0
 Nx,Ny = 2,2
 N = Nx*Ny
 N_orb = 2N
@@ -145,14 +184,10 @@ for μ in 0
     figsize...,
     xlabel = L"T")
 
-    scatterlines!(axf,lsT,Fs)
-
     axU = Axis(fig[1,2];
     xscale = log10,
     figsize...,
     xlabel = L"T")
-
-    scatterlines!(axU,lsT,Us)
 
     axN = Axis(fig[2,1];
     xscale = log10,
@@ -161,19 +196,33 @@ for μ in 0
 
     ylims!(axN,0.9,1.1)
 
-    scatterlines!(axN,lsT,Ns)
-
     axCe = Axis(fig[2,2];
     xscale = log10,
     figsize...,
     xlabel = L"T")
 
-    scatterlines!(axCe,lsT,Ces)
+    if U == 0
+        lines!(axf,lsT,fe.(lsβ/2,Nx,Ny);color = :red)
+        lines!(axU,lsT,ue.(lsβ/2,Nx,Ny);color = :red)
+        lines!(axCe,lsT,2*ce.(lsβ/2,Nx,Ny);color = :red)
+        scatter!(axf,lsT,Fs)
+        scatter!(axU,lsT,Us)
+        scatter!(axN,lsT,Ns)
+        scatter!(axCe,lsT,Ces)
+    else
+        scatterlines!(axf,lsT,Fs)
+        scatterlines!(axU,lsT,Us)
+        scatterlines!(axN,lsT,Ns)
+        scatterlines!(axCe,lsT,Ces)
+    end
+
+    
 
     resize_to_layout!(fig)
     display(fig)
 
     save("FermiHubbard/figures/spinful_hubbard_$(Nx)x$(Ny)_U=$(U).pdf",fig)
+    save("FermiHubbard/figures/spinful_hubbard_$(Nx)x$(Ny)_U=$(U).png",fig)
 
     @save "FermiHubbard/data/data_$(Nx)x$(Ny)_U=$(U).jld2" data
     @save "FermiHubbard/data/Fs_$(Nx)x$(Ny)_U=$(U).jld2" Fs

@@ -72,8 +72,7 @@ function getS2(N,m,k;Jzz = 1,Jxy = 1)
     return hermitianize(H)
 end
 
-N = 16
-for N in [20]
+for N in [4,6,12,16,18,20]
 params = (Jzz =1,Jxy = 1)
 
 lsm = (-N:N) .+ mod(N,2)/2
@@ -87,7 +86,6 @@ Hdata = Dict()
         stateinfo = stateinfos[i]
         k = ks[i]
         pstate = stateinfo["pstate"]
-        @show size(H)
         E,U = calcEg(H)
         Hdata[(m,k)] = Dict(
             "H" => H,

@@ -17,5 +17,6 @@
   
 ## temporary
 - Latt -> orbital list -> state list结构
-- 晶格操作 -> 二进制操作
+- 写矩阵元
+
 
