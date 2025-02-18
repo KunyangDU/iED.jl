@@ -1,6 +1,8 @@
 # TODO for iED.jl
 
 ## code
+- 写平移对称性的筛选
+
 - Heisenberg spin factor
 - FH双占据、磁响应率
 - FH平移对称性
