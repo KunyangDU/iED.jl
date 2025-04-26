@@ -1,4 +1,4 @@
-using CairoMakie,LaTeXStrings,KrylovKit
+using CairoMakie,KrylovKit
 
 include("utils.jl")
 include("../src/iED.jl")
@@ -72,7 +72,13 @@ function getS2(N,m,k;Jzz = 1,Jxy = 1)
     return hermitianize(H)
 end
 
-for N in [4,6,12,16,18,20]
+
+
+foldername = "Heisenberg/data"
+
+lsN = [10,12,16,18,20]
+lsE = zeros(length(lsN))
+for (iN,N) in enumerate(lsN)
 params = (Jzz =1,Jxy = 1)
 
 lsm = (-N:N) .+ mod(N,2)/2
@@ -96,12 +102,12 @@ Hdata = Dict()
         )
     end
     E0 = minimum([Hdata[(m,k)]["E"] for k in ks]) / N - 1/4
-    @show N,E0
+    lsE[iN] = E0 
 end
 end
 
-
-
+@save "$(foldername)/lsN_$(lsN).jld2" lsN
+@save "$(foldername)/lsE_$(lsN).jld2" lsE
 
 
 

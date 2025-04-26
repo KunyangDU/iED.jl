@@ -1,12 +1,12 @@
-include("../src/iED.jl")
-include("utils.jl")
+include("../../src/iED.jl")
+include("../utils.jl")
 
 function Ham_U1(N)
     @show N
     state = U1Symm(N, 0)
     H = zeros(length(state),length(state))
     for (ia,a) in enumerate(state)
-        for i in 1:N
+        for i in 1:N-1
             j = mod(i,N) + 1
             # j = i + 1
             if bit(a,i) == bit(a,j)
@@ -30,5 +30,5 @@ for (i,N) in enumerate(lsN)
     lsE[i] = E / N - 1/4
     @show E / N - 1/4
 end
-@save "$(foldername)/lsN_U1.jld2" lsN
-@save "$(foldername)/lsE_U1.jld2" lsE
+@save "$(foldername)/lsN_obc.jld2" lsN
+@save "$(foldername)/lsE_obc.jld2" lsE
