@@ -26,7 +26,7 @@ function S2_U1(N,m)
     state = U1Symm(N, m)
     S = zeros(length(state),length(state))
     for (ia,a) in enumerate(state)
-        for i in 1:N-1,j in 1:N-1
+        for i in 1:N,j in 1:N
             i == j && continue
             # for j = mod(i,N) + 1
             # j = i + 1
@@ -34,21 +34,21 @@ function S2_U1(N,m)
                 S[ia,ia] += 1/4
             else
                 S[ia,ia] += - 1/4
-                b = flip(a,[i,j])
-                ib = findfirst(x -> x == b, state)
-                S[ia,ib] += 1/2
+                # b = flip(a,[i,j])
+                # ib = findfirst(x -> x == b, state)
+                # S[ia,ib] += 1/2
             end
         end
     end
-    return hermitianize(S) + 3*N/4 * diagm(ones(length(state)))
+    return hermitianize(S) + N/4 * diagm(ones(length(state)))
 end
 
 dataname = "Heisenberg/obc/data"
 time0 = time()
 
-lsN = [14]
+lsN = [10]
 params = (Jz =1,Jxy = 1)
-lsβ = vcat(2. .^ (-5:1:-1), 1:10)
+lsβ = vcat(2. .^ (-5:1:-1), 1:10) .* 2
 figsize = (width = 200,height = 200)
 
 for (iN,N) in enumerate(lsN)
@@ -72,6 +72,7 @@ for (iN,N) in enumerate(lsN)
     end
 
     Fs = zeros(length(lsβ))
+    Es = zeros(length(lsβ))
     Cs = zeros(length(lsβ))
     χs = zeros(length(lsβ))
     for (iβ,β) in enumerate(lsβ)
@@ -89,13 +90,14 @@ for (iN,N) in enumerate(lsN)
             obs["H"] = E
             obs["H2"] = E .^ 2
             obs["m"] = m*ones(length(Hdata[(m,)]["state"]))
-            obs["m2"] = diag(real.(U'*S2*U)) / 3
+            obs["m2"] = diag(real.(U'*S2*U))
 
             Obs[(m,)] = obs
         end
 
-        F,C,χ = let 
+        F,C,χ,E = let 
             Z = sum([sum(Obs[key]["expE"]) for key in keys(Obs)])
+            E = sum([sum(Obs[key]["expE"] .* Obs[key]["H"]) for key in keys(Obs)])
             obs = zeros(4)
             for (m,) in keys(Obs)
                 obs += map(x -> sum(Obs[(m,)]["expE"] .* Obs[(m,)][x]) / Z,["H2","H","m2","m"])
@@ -103,11 +105,12 @@ for (iN,N) in enumerate(lsN)
             C = @. (obs[1] - obs[2] ^2) * β ^2 
             χ = @. (obs[3] - obs[4] ^2) * β
             
-            - log(Z) / β, C, χ
+            - log(Z) / β, C, χ, E / Z
         end
         Fs[iβ] = F
         Cs[iβ] = C
         χs[iβ] = χ
+        Es[iβ] = E
     end
 
     fig = Figure()
@@ -139,7 +142,8 @@ for (iN,N) in enumerate(lsN)
         "F" => Fs,
         "C" => Cs,
         "χ" => χs,
-        "Hdata" => Hdata
+        "Hdata" => Hdata,
+        "E" => Es
     )
     @save "$(dataname)/data_obc_1x$(N)_$(params).jld2" data
 end

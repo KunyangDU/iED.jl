@@ -64,12 +64,9 @@ end
 
 function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
     orbitals = [(i, j, σ) for j in 1:Ny for i in 1:Nx for σ in 1:2]
-    # 生成轨道列表 (i, j, spin)
     N_orb = length(orbitals)
-    # 构建单粒子哈密顿量（最近邻跃迁）
     H_single = zeros(N_orb, N_orb)
     for (m, (i, j, σ)) in enumerate(orbitals)
-        # 寻找最近邻
         neighbors = []
         i < Nx && push!(neighbors, (i+1, j, σ))
         i > 1 && push!(neighbors, (i-1, j, σ))
@@ -80,19 +77,16 @@ function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
             j == 1 && push!(neighbors, (i, Ny, σ))
         end
         
-        # 设置跃迁矩阵元
         for (ni, nj, nσ) in neighbors
             n = findfirst(orb -> orb == (ni, nj, nσ), orbitals)
             isnothing(n) && continue
             H_single[m, n] = -1.0
-            H_single[n, m] = -1.0  # 保证厄米性
+            H_single[n, m] = -1.0
         end
     end
 
-    # 生成所有基矢（二进制位表示占据情况）
     N_states = length(basis)
 
-    # 构建多体哈密顿量
     H = zeros(Float64, N_states, N_states)
     for (iket,ket) in enumerate(basis)
         H[iket,iket] += -(μ + U/2) * count1s(ket)
@@ -100,23 +94,19 @@ function main(Nx,Ny,μ,U,basis = 0:(2^N_orb - 1))
         for n in 1:N_orb, m in 1:N_orb
             (H_single[m, n] == 0) && continue
 
-            # 湮灭算符c_n作用
             (ket & (1 << (n-1)) == 0) && continue
             ket1 = ket ⊻ (1 << (n-1))
             sign1 = (-1)^count1s(ket & ((1 << (n-1)) - 1))
 
-            # 产生算符c^†_m作用
             (ket1 & (1 << (m-1)) != 0) && continue
             ket2 = ket1 | (1 << (m-1))
             sign2 = (-1)^count1s(ket1 & ((1 << (m-1)) - 1))
 
-            # 更新矩阵元
             ket2_idx = bifind(basis,ket,iket,ket2)
             H[ket2_idx, iket] += H_single[m, n] * sign1 * sign2
         end
     end
 
-    # 对角化并输出基态能量
     F = eigen(H)
     eigenvectors = F.vectors
     eigenvalues = F.values
@@ -127,9 +117,7 @@ U = 0
 Nx,Ny = 2,4
 N = Nx*Ny
 N_orb = 2N
-#lsμ = (U/2 + 2) .* range(-1,1,3*(U+4) + 1)
 
-# lsβ = 10 .^ range(log10.([5e-3,10])...,40)
 lsβ = vcat(2. .^ (-15:1:-1), 1:10)
 lsT = 1 ./ lsβ
 
